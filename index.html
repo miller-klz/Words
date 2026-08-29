@@ -36,6 +36,19 @@
 
     <!-- ADD / EDIT -->
     <section id="view-add" class="view">
+      <div class="segmented" id="add-mode-toggle">
+        <button type="button" class="active" data-mode="single">Add one word</button>
+        <button type="button" data-mode="bulk">Quick add list</button>
+      </div>
+
+      <div id="bulk-add-panel" hidden>
+        <label for="bulk-words-input">Words (one per line)</label>
+        <textarea id="bulk-words-input" placeholder="petrichor&#10;ineffable&#10;sonder" style="min-height:140px"></textarea>
+        <p class="hint" style="margin-top:6px">Each word is saved with its definition looked up automatically. Add your own quote and author for each afterwards from My Words.</p>
+        <button type="button" id="bulk-add-btn" class="btn-primary btn-block">Add all words</button>
+        <div class="lookup-status" id="bulk-add-status"></div>
+      </div>
+
       <form id="word-form">
         <input type="hidden" id="edit-id" />
 

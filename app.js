@@ -22,6 +22,7 @@
     if (name === 'settings') renderSettings();
     if (name === 'add') {
       if (editingId === null) resetForm();
+      resetAddMode();
       populateAuthorsDatalist();
     }
   }
@@ -67,7 +68,7 @@
       <div class="card">
         <h2 class="today-word">${escapeHtml(word.word)}</h2>
         <div class="today-meta">${escapeHtml(word.pos || '')}${word.phonetic ? ' · ' + escapeHtml(word.phonetic) : ''}</div>
-        <p class="today-definition">${escapeHtml(word.definition)}</p>
+        <p class="today-definition">${word.definition ? escapeHtml(word.definition) : '<em>No definition yet — go add one from My Words.</em>'}</p>
         ${word.quote ? `
           <blockquote class="today-quote">
             “${escapeHtml(word.quote)}”
@@ -112,7 +113,7 @@
     listEl.innerHTML = words.map((w) => `
       <div class="card word-card" data-id="${w.id}">
         <h3>${escapeHtml(w.word)} <span class="pos">${escapeHtml(w.pos || '')}</span></h3>
-        <p class="def">${escapeHtml(w.definition)}</p>
+        <p class="def">${w.definition ? escapeHtml(w.definition) : '<em>No definition yet — tap Edit to add one.</em>'}</p>
         ${w.quote ? `<blockquote>“${escapeHtml(w.quote)}”${(w.author || w.book) ? ` — ${escapeHtml(w.author || '')}${w.book ? ', ' + escapeHtml(w.book) : ''}` : ''}</blockquote>` : ''}
         <div class="actions">
           <button class="btn-secondary small-btn" data-action="edit" data-id="${w.id}">Edit</button>
@@ -178,21 +179,25 @@
     showView('add');
   }
 
+  async function lookupDefinition(word) {
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+    if (!res.ok) throw new Error('not found');
+    const data = await res.json();
+    const entry = data[0];
+    const phonetic = entry.phonetic || (entry.phonetics || []).map((p) => p.text).filter(Boolean)[0] || '';
+    const meaning = (entry.meanings || [])[0];
+    const definition = meaning && meaning.definitions && meaning.definitions[0] ? meaning.definitions[0].definition : '';
+    const pos = meaning ? meaning.partOfSpeech : '';
+    return { phonetic, pos, definition };
+  }
+
   document.getElementById('lookup-btn').addEventListener('click', async () => {
     const word = fields.word.value.trim();
     if (!word) { toast('Type a word first'); return; }
     const statusEl = document.getElementById('lookup-status');
     statusEl.textContent = 'Looking up…';
     try {
-      const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
-      if (!res.ok) throw new Error('not found');
-      const data = await res.json();
-      const entry = data[0];
-      const phonetic = entry.phonetic || (entry.phonetics || []).map((p) => p.text).filter(Boolean)[0] || '';
-      const meaning = (entry.meanings || [])[0];
-      const definition = meaning && meaning.definitions && meaning.definitions[0] ? meaning.definitions[0].definition : '';
-      const pos = meaning ? meaning.partOfSpeech : '';
-
+      const { phonetic, pos, definition } = await lookupDefinition(word);
       if (phonetic) fields.phonetic.value = phonetic;
       if (pos) fields.pos.value = pos;
       if (definition) fields.definition.value = definition;
@@ -200,6 +205,70 @@
     } catch (err) {
       statusEl.textContent = 'Could not find that word online — you can type the meaning yourself.';
     }
+  });
+
+  // ---------- Bulk add ----------
+
+  const addModeToggle = document.getElementById('add-mode-toggle');
+  const bulkPanel = document.getElementById('bulk-add-panel');
+
+  function resetAddMode() {
+    addModeToggle.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.mode === 'single'));
+    bulkPanel.hidden = true;
+    form.hidden = false;
+    document.getElementById('bulk-words-input').value = '';
+    document.getElementById('bulk-add-status').textContent = '';
+  }
+
+  addModeToggle.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-mode]');
+    if (!btn) return;
+    const mode = btn.dataset.mode;
+    addModeToggle.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === btn));
+    bulkPanel.hidden = mode !== 'bulk';
+    form.hidden = mode === 'bulk';
+  });
+
+  document.getElementById('bulk-add-btn').addEventListener('click', async () => {
+    const textarea = document.getElementById('bulk-words-input');
+    const statusEl = document.getElementById('bulk-add-status');
+    const wordsToAdd = textarea.value
+      .split('\n')
+      .map((w) => w.trim())
+      .filter(Boolean);
+
+    if (!wordsToAdd.length) { toast('Type at least one word'); return; }
+
+    const bulkBtn = document.getElementById('bulk-add-btn');
+    bulkBtn.disabled = true;
+    let missingDefinition = 0;
+
+    for (let i = 0; i < wordsToAdd.length; i++) {
+      const word = wordsToAdd[i];
+      statusEl.textContent = `Adding ${i + 1} of ${wordsToAdd.length}: ${word}…`;
+      let looked = { phonetic: '', pos: '', definition: '' };
+      try {
+        looked = await lookupDefinition(word);
+      } catch (err) { /* no definition found online; save anyway for later editing */ }
+      if (!looked.definition) missingDefinition++;
+      await wjAddWord({
+        word,
+        pos: looked.pos || '',
+        phonetic: looked.phonetic || '',
+        definition: looked.definition || '',
+        quote: '',
+        author: '',
+        book: '',
+        dateAdded: Date.now(),
+      });
+    }
+
+    bulkBtn.disabled = false;
+    textarea.value = '';
+    statusEl.textContent = '';
+    toast(`Added ${wordsToAdd.length} word${wordsToAdd.length === 1 ? '' : 's'}` +
+      (missingDefinition ? ` — ${missingDefinition} need a definition added` : ''));
+    showView('list');
   });
 
   form.addEventListener('submit', async (e) => {
