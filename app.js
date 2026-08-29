@@ -18,9 +18,12 @@
     Object.keys(views).forEach((k) => views[k].classList.toggle('active', k === name));
     tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.view === name));
     if (name === 'today') renderToday();
-    if (name === 'list') renderList();
+    if (name === 'list') { populateAuthorFilter().then(() => renderList()); }
     if (name === 'settings') renderSettings();
-    if (name === 'add' && editingId === null) resetForm();
+    if (name === 'add') {
+      if (editingId === null) resetForm();
+      populateAuthorsDatalist();
+    }
   }
 
   tabButtons.forEach((btn) => {
@@ -76,18 +79,33 @@
 
   // ---------- List ----------
 
+  async function populateAuthorFilter() {
+    const select = document.getElementById('author-filter');
+    const authors = await wjGetAllAuthors();
+    const current = select.value;
+    select.innerHTML = '<option value="">All authors</option>' +
+      authors.map((a) => `<option value="${escapeHtml(a.name)}">${escapeHtml(a.name)}</option>`).join('');
+    if (authors.some((a) => a.name === current)) select.value = current;
+  }
+
   async function renderList(filterText) {
     const listEl = document.getElementById('word-list');
+    const authorFilter = document.getElementById('author-filter').value;
     let words = await wjGetAllWords();
     words.sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
+
+    if (filterText === undefined) filterText = document.getElementById('search-input').value;
 
     if (filterText) {
       const f = filterText.toLowerCase();
       words = words.filter((w) => w.word.toLowerCase().includes(f));
     }
+    if (authorFilter) {
+      words = words.filter((w) => w.author === authorFilter);
+    }
 
     if (!words.length) {
-      listEl.innerHTML = `<div class="empty-state"><span class="big-emoji">🔎</span><p>${filterText ? 'No words match your search.' : 'No words saved yet.'}</p></div>`;
+      listEl.innerHTML = `<div class="empty-state"><span class="big-emoji">🔎</span><p>${(filterText || authorFilter) ? 'No words match.' : 'No words saved yet.'}</p></div>`;
       return;
     }
 
@@ -105,6 +123,7 @@
   }
 
   document.getElementById('search-input').addEventListener('input', (e) => renderList(e.target.value));
+  document.getElementById('author-filter').addEventListener('change', () => renderList());
 
   document.getElementById('word-list').addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-action]');
@@ -205,8 +224,45 @@
       await wjAddWord(entry);
       toast('Word saved');
     }
+    if (entry.author) await wjEnsureAuthor(entry.author);
     resetForm();
     showView('list');
+  });
+
+  // ---------- Authors ----------
+
+  async function populateAuthorsDatalist() {
+    const authors = await wjGetAllAuthors();
+    document.getElementById('authors-datalist').innerHTML =
+      authors.map((a) => `<option value="${escapeHtml(a.name)}"></option>`).join('');
+  }
+
+  async function renderAuthorChips() {
+    const authors = await wjGetAllAuthors();
+    const el = document.getElementById('author-chip-list');
+    el.innerHTML = authors.length
+      ? authors.map((a) => `<span class="author-chip">${escapeHtml(a.name)}<button type="button" data-id="${a.id}" aria-label="Remove ${escapeHtml(a.name)}">&times;</button></span>`).join('')
+      : `<p class="hint">No favorite authors yet — add one above, or it'll be added automatically the next time you save a word with an author.</p>`;
+  }
+
+  document.getElementById('add-author-btn').addEventListener('click', async () => {
+    const input = document.getElementById('new-author-input');
+    const name = input.value.trim();
+    if (!name) return;
+    await wjEnsureAuthor(name);
+    input.value = '';
+    renderAuthorChips();
+  });
+
+  document.getElementById('new-author-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('add-author-btn').click(); }
+  });
+
+  document.getElementById('author-chip-list').addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-id]');
+    if (!btn) return;
+    await wjDeleteAuthor(Number(btn.dataset.id));
+    renderAuthorChips();
   });
 
   // ---------- Settings ----------
@@ -214,6 +270,7 @@
   async function renderSettings() {
     const words = await wjGetAllWords();
     document.getElementById('word-count').textContent = `${words.length} word${words.length === 1 ? '' : 's'} saved.`;
+    renderAuthorChips();
 
     const permission = ('Notification' in window) ? Notification.permission : 'unsupported';
     const statusEl = document.getElementById('notif-status');

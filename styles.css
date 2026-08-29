@@ -168,7 +168,7 @@ label {
 
 label:first-of-type { margin-top: 0; }
 
-input[type="text"], textarea, input[type="search"] {
+input[type="text"], textarea, input[type="search"], select {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--border);
@@ -272,6 +272,29 @@ nav.tabbar button.active { color: var(--brand); font-weight: 700; }
 .toast.show { opacity: 1; }
 
 .searchbar { margin-bottom: 14px; }
+
+.author-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 6px 5px 12px;
+  font-size: 0.85rem;
+  margin: 0 8px 8px 0;
+}
+
+.author-chip button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 999px;
+}
+.author-chip button:hover { color: var(--danger); }
 
 .hint {
   font-size: 0.85rem;

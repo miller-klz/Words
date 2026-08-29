@@ -28,6 +28,9 @@
     <!-- LIST -->
     <section id="view-list" class="view">
       <input type="search" class="searchbar" id="search-input" placeholder="Search your words…" />
+      <select class="searchbar" id="author-filter">
+        <option value="">All authors</option>
+      </select>
       <div id="word-list"></div>
     </section>
 
@@ -58,7 +61,8 @@
         <textarea id="input-quote" placeholder="A sentence using the word — ideally from a favorite author"></textarea>
 
         <label for="input-author">Author</label>
-        <input type="text" id="input-author" placeholder="e.g. Cormac McCarthy" />
+        <input type="text" id="input-author" placeholder="e.g. Cormac McCarthy" list="authors-datalist" autocomplete="off" />
+        <datalist id="authors-datalist"></datalist>
 
         <label for="input-book">Book / source</label>
         <input type="text" id="input-book" placeholder="e.g. Blood Meridian" />
@@ -69,6 +73,22 @@
 
     <!-- SETTINGS -->
     <section id="view-settings" class="view">
+      <div class="card">
+        <div class="setting-row">
+          <div>
+            <div class="label">Favorite authors</div>
+            <div class="desc">Authors you'd like your words quoted from. They'll also show up automatically as you save words.</div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div>
+            <input type="text" id="new-author-input" placeholder="e.g. Toni Morrison" autocomplete="off" />
+          </div>
+          <button type="button" id="add-author-btn" class="btn-secondary small-btn">Add</button>
+        </div>
+        <div id="author-chip-list" style="margin-top:12px"></div>
+      </div>
+
       <div class="card">
         <div class="setting-row">
           <div>

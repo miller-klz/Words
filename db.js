@@ -3,7 +3,7 @@
    ES5-ish script scope (no import/export) and use `self`, not `window`. */
 
 var WJ_DB_NAME = 'word-journal';
-var WJ_DB_VERSION = 1;
+var WJ_DB_VERSION = 2;
 
 function wjOpenDB() {
   return new Promise(function (resolve, reject) {
@@ -16,6 +16,9 @@ function wjOpenDB() {
       }
       if (!db.objectStoreNames.contains('meta')) {
         db.createObjectStore('meta', { keyPath: 'key' });
+      }
+      if (!db.objectStoreNames.contains('authors')) {
+        db.createObjectStore('authors', { keyPath: 'id', autoIncrement: true });
       }
     };
     req.onsuccess = function () { resolve(req.result); };
@@ -86,6 +89,47 @@ function wjSetMeta(state) {
     return new Promise(function (resolve, reject) {
       var store = wjTx(db, 'meta', 'readwrite');
       var req = store.put(state);
+      req.onsuccess = function () { resolve(); };
+      req.onerror = function () { reject(req.error); };
+    });
+  });
+}
+
+function wjGetAllAuthors() {
+  return wjOpenDB().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var req = wjTx(db, 'authors', 'readonly').getAll();
+      req.onsuccess = function () {
+        var authors = (req.result || []).sort(function (a, b) { return a.name.localeCompare(b.name); });
+        resolve(authors);
+      };
+      req.onerror = function () { reject(req.error); };
+    });
+  });
+}
+
+/* Adds an author if a case-insensitive match isn't already saved.
+   No-op for a blank name. Returns the (possibly pre-existing) author id. */
+function wjEnsureAuthor(name) {
+  name = (name || '').trim();
+  if (!name) return Promise.resolve(null);
+  return wjGetAllAuthors().then(function (authors) {
+    var existing = authors.filter(function (a) { return a.name.toLowerCase() === name.toLowerCase(); })[0];
+    if (existing) return existing.id;
+    return wjOpenDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var req = wjTx(db, 'authors', 'readwrite').add({ name: name });
+        req.onsuccess = function () { resolve(req.result); };
+        req.onerror = function () { reject(req.error); };
+      });
+    });
+  });
+}
+
+function wjDeleteAuthor(id) {
+  return wjOpenDB().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var req = wjTx(db, 'authors', 'readwrite').delete(id);
       req.onsuccess = function () { resolve(); };
       req.onerror = function () { reject(req.error); };
     });
