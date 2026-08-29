@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Word Journal</title>
+  <meta name="theme-color" content="#6b463a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Word Journal" />
+  <meta name="description" content="Save favorite words from your reading and get a daily reminder with their meaning and a quote." />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>📖 Word Journal</h1>
+  </header>
+
+  <main>
+    <!-- TODAY -->
+    <section id="view-today" class="view active">
+      <div id="today-content"></div>
+    </section>
+
+    <!-- LIST -->
+    <section id="view-list" class="view">
+      <input type="search" class="searchbar" id="search-input" placeholder="Search your words…" />
+      <div id="word-list"></div>
+    </section>
+
+    <!-- ADD / EDIT -->
+    <section id="view-add" class="view">
+      <form id="word-form">
+        <input type="hidden" id="edit-id" />
+
+        <label for="input-word">Word</label>
+        <div class="row">
+          <div>
+            <input type="text" id="input-word" placeholder="e.g. petrichor" autocapitalize="off" autocorrect="off" required />
+          </div>
+          <button type="button" id="lookup-btn" class="btn-secondary small-btn">Look up</button>
+        </div>
+        <div class="lookup-status" id="lookup-status"></div>
+
+        <label for="input-pos">Part of speech</label>
+        <input type="text" id="input-pos" placeholder="e.g. noun" />
+
+        <label for="input-phonetic">Pronunciation</label>
+        <input type="text" id="input-phonetic" placeholder="e.g. /ˈpɛt.rɪ.kɔːr/" />
+
+        <label for="input-definition">Meaning</label>
+        <textarea id="input-definition" placeholder="What does it mean?" required></textarea>
+
+        <label for="input-quote">Sentence or paragraph</label>
+        <textarea id="input-quote" placeholder="A sentence using the word — ideally from a favorite author"></textarea>
+
+        <label for="input-author">Author</label>
+        <input type="text" id="input-author" placeholder="e.g. Cormac McCarthy" />
+
+        <label for="input-book">Book / source</label>
+        <input type="text" id="input-book" placeholder="e.g. Blood Meridian" />
+
+        <button type="submit" class="btn-primary btn-block" id="save-btn">Save word</button>
+      </form>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="view-settings" class="view">
+      <div class="card">
+        <div class="setting-row">
+          <div>
+            <div class="label">Daily notification</div>
+            <div class="desc">Get a notification each day with one saved word.</div>
+          </div>
+          <span class="status-pill" id="notif-status">Off</span>
+        </div>
+        <button id="enable-notif-btn" class="btn-primary btn-block">Enable daily notification</button>
+        <p class="hint" id="notif-hint" style="margin-top:12px"></p>
+      </div>
+
+      <div class="card">
+        <div class="setting-row">
+          <div>
+            <div class="label">Backup your words</div>
+            <div class="desc">Words are stored only on this device. Export a backup so you don't lose them.</div>
+          </div>
+        </div>
+        <button id="export-btn" class="btn-secondary btn-block">Export as file</button>
+        <button id="import-btn" class="btn-secondary btn-block" style="margin-top:8px">Import from file</button>
+        <input type="file" id="import-file" accept="application/json" hidden />
+      </div>
+
+      <div class="card">
+        <div class="setting-row"><div class="label">Total words saved</div></div>
+        <p id="word-count" class="hint"></p>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <nav class="tabbar">
+    <button data-view="today" class="active"><span class="icon">📅</span>Today</button>
+    <button data-view="list"><span class="icon">📚</span>My Words</button>
+    <button data-view="add"><span class="icon">➕</span>Add</button>
+    <button data-view="settings"><span class="icon">⚙️</span>Settings</button>
+  </nav>
+
+  <script src="db.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
