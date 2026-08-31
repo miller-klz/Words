@@ -755,8 +755,26 @@
   }
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') maybeShowTodayNotification();
+    if (document.visibilityState === 'visible') {
+      maybeShowTodayNotification();
+      // An installed PWA can sit backgrounded for days without a full
+      // reload, so it never notices a new deploy on its own. Actively
+      // check each time the app is brought back to the foreground.
+      if (swRegistration) swRegistration.update().catch(() => {});
+    }
   });
+
+  // Reload once a new service worker (from a fresh deploy) takes over, so
+  // "there's an update but you have to force-close the app to see it"
+  // isn't the normal experience.
+  if ('serviceWorker' in navigator) {
+    let reloadedForUpdate = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloadedForUpdate) return;
+      reloadedForUpdate = true;
+      window.location.reload();
+    });
+  }
 
   // ---------- Init ----------
 
