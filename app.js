@@ -705,6 +705,16 @@
     e.target.value = '';
   });
 
+  document.getElementById('delete-all-btn').addEventListener('click', async () => {
+    const words = await wjGetAllWords();
+    if (!words.length) { toast('No words to delete'); return; }
+    const sure = confirm(`Delete all ${words.length} saved words? This can't be undone — export a backup first if you want one.`);
+    if (!sure) return;
+    await wjDeleteAllWords();
+    toast('All words deleted');
+    renderSettings();
+  });
+
   // ---------- Notifications: service worker + daily check ----------
 
   async function registerServiceWorker() {

@@ -73,6 +73,17 @@ function wjDeleteWord(id) {
   });
 }
 
+function wjDeleteAllWords() {
+  return wjOpenDB().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var store = wjTx(db, 'words', 'readwrite');
+      var req = store.clear();
+      req.onsuccess = function () { resolve(); };
+      req.onerror = function () { reject(req.error); };
+    });
+  });
+}
+
 function wjGetMeta() {
   return wjOpenDB().then(function (db) {
     return new Promise(function (resolve, reject) {

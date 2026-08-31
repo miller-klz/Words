@@ -1,4 +1,4 @@
-const CACHE_NAME = 'word-journal-v6';
+const CACHE_NAME = 'word-journal-v7';
 const APP_SHELL = [
   './',
   './index.html',
