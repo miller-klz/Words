@@ -652,19 +652,52 @@
       const text = await file.text();
       const items = JSON.parse(text);
       if (!Array.isArray(items)) throw new Error('bad format');
-      let count = 0;
+
+      // Match by word (case-insensitive) against what's already saved: fill
+      // in/overwrite only the fields the import actually provides, so a
+      // second import (e.g. adding quotes/authors after a first pass that
+      // only had definitions) enriches existing entries instead of
+      // creating duplicates.
+      const existing = await wjGetAllWords();
+      const byName = new Map(existing.map((w) => [w.word.toLowerCase(), w]));
+      let added = 0;
+      let updated = 0;
+
       for (const item of items) {
-        if (!item.word || !item.definition) continue;
-        const entry = {
-          word: item.word, pos: item.pos || '', phonetic: item.phonetic || '',
-          definition: item.definition, etymology: item.etymology || '', quote: item.quote || '',
-          author: item.author || '', book: item.book || '', dateAdded: item.dateAdded || Date.now(),
-        };
-        await wjAddWord(entry);
-        if (entry.author) await wjEnsureAuthor(entry.author);
-        count++;
+        if (!item.word) continue;
+        const key = item.word.toLowerCase();
+        const match = byName.get(key);
+
+        if (match) {
+          const merged = {
+            ...match,
+            pos: item.pos || match.pos,
+            phonetic: item.phonetic || match.phonetic,
+            definition: item.definition || match.definition,
+            etymology: item.etymology || match.etymology,
+            quote: item.quote || match.quote,
+            author: item.author || match.author,
+            book: item.book || match.book,
+          };
+          await wjUpdateWord(merged);
+          byName.set(key, merged);
+          updated++;
+        } else if (item.definition) {
+          const entry = {
+            word: item.word, pos: item.pos || '', phonetic: item.phonetic || '',
+            definition: item.definition, etymology: item.etymology || '', quote: item.quote || '',
+            author: item.author || '', book: item.book || '', dateAdded: item.dateAdded || Date.now(),
+          };
+          const id = await wjAddWord(entry);
+          entry.id = id;
+          byName.set(key, entry);
+          added++;
+        }
+
+        if (item.author) await wjEnsureAuthor(item.author);
       }
-      toast(`Imported ${count} word${count === 1 ? '' : 's'}`);
+
+      toast(`Added ${added}, updated ${updated}`);
       renderSettings();
     } catch (err) {
       toast('Could not read that file');
