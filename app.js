@@ -262,8 +262,29 @@
     return div.textContent.replace(/\s+/g, ' ').trim();
   }
 
+  // Words copied from a book often carry a capital letter (start of a
+  // sentence) or curly quotes/dashes that dictionary sites won't match.
+  function normalizeWordForLookup(word) {
+    return word
+      .trim()
+      .replace(/[‘’]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/[–—]/g, '-')
+      .replace(/^["'.,;:!?()\[\]]+|["'.,;:!?()\[\]]+$/g, '');
+  }
+
+  async function fetchWithTimeout(url, ms = 8000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    try {
+      return await fetch(url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function lookupFromDictionaryApi(word) {
-    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+    const res = await fetchWithTimeout(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
     if (!res.ok) return null;
     const data = await res.json();
     const entry = data[0];
@@ -279,7 +300,7 @@
   // more literary/archaic words, so it's used as a fallback when the first
   // source comes up empty.
   async function lookupFromWiktionary(word) {
-    const res = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`);
+    const res = await fetchWithTimeout(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`);
     if (!res.ok) return null;
     const data = await res.json();
     const entries = data.en || Object.values(data)[0] || [];
@@ -292,13 +313,14 @@
 
   async function lookupEtymology(word) {
     try {
-      const secRes = await fetch(`https://en.wiktionary.org/w/api.php?action=parse&page=${encodeURIComponent(word)}&prop=sections&format=json&origin=*`);
+      const secRes = await fetchWithTimeout(`https://en.wiktionary.org/w/api.php?action=parse&page=${encodeURIComponent(word)}&prop=sections&format=json&origin=*`);
       if (!secRes.ok) return '';
       const secData = await secRes.json();
+      if (secData.error) return '';
       const sections = (secData.parse && secData.parse.sections) || [];
       const etySection = sections.find((s) => /^etymology/i.test(s.line));
       if (!etySection) return '';
-      const textRes = await fetch(`https://en.wiktionary.org/w/api.php?action=parse&page=${encodeURIComponent(word)}&prop=text&section=${etySection.index}&format=json&origin=*`);
+      const textRes = await fetchWithTimeout(`https://en.wiktionary.org/w/api.php?action=parse&page=${encodeURIComponent(word)}&prop=text&section=${etySection.index}&format=json&origin=*`);
       if (!textRes.ok) return '';
       const textData = await textRes.json();
       const html = textData.parse && textData.parse.text && textData.parse.text['*'];
@@ -309,16 +331,34 @@
     }
   }
 
-  async function lookupWordInfo(word, { withEtymology } = {}) {
-    let result = await lookupFromDictionaryApi(word).catch(() => null);
+  async function lookupOnce(word) {
+    let result = await lookupFromDictionaryApi(word).catch((err) => { console.warn('dictionaryapi.dev lookup failed', err); return null; });
     if (!result || !result.definition) {
-      const fallback = await lookupFromWiktionary(word).catch(() => null);
+      const fallback = await lookupFromWiktionary(word).catch((err) => { console.warn('Wiktionary lookup failed', err); return null; });
       if (fallback && fallback.definition) {
         result = { phonetic: result ? result.phonetic : '', pos: result && result.pos ? result.pos : fallback.pos, definition: fallback.definition };
       }
     }
+    return result;
+  }
+
+  // Tries the word as typed, then falls back to an all-lowercase version —
+  // most dictionary/Wiktionary pages are titled lowercase, so a capitalized
+  // word (e.g. copied from the start of a sentence) would otherwise 404.
+  async function lookupWordInfo(word, { withEtymology } = {}) {
+    const cleaned = normalizeWordForLookup(word);
+    let result = await lookupOnce(cleaned);
+    let matchedWord = cleaned;
+    if ((!result || !result.definition) && cleaned.toLowerCase() !== cleaned) {
+      const lower = cleaned.toLowerCase();
+      const lowerResult = await lookupOnce(lower);
+      if (lowerResult && lowerResult.definition) {
+        result = lowerResult;
+        matchedWord = lower;
+      }
+    }
     result = result || { phonetic: '', pos: '', definition: '' };
-    result.etymology = withEtymology ? await lookupEtymology(word) : '';
+    result.etymology = withEtymology ? await lookupEtymology(matchedWord) : '';
     return result;
   }
 
@@ -326,15 +366,30 @@
     const word = fields.word.value.trim();
     if (!word) { toast('Type a word first'); return; }
     const statusEl = document.getElementById('lookup-status');
+    const lookupBtn = document.getElementById('lookup-btn');
+    lookupBtn.disabled = true;
     statusEl.textContent = 'Looking up…';
-    const { phonetic, pos, definition, etymology } = await lookupWordInfo(word, { withEtymology: true });
-    if (phonetic) fields.phonetic.value = phonetic;
-    if (pos) fields.pos.value = pos;
-    if (definition) fields.definition.value = definition;
-    if (etymology) fields.etymology.value = etymology;
-    statusEl.textContent = definition
-      ? 'Definition found — feel free to edit it.'
-      : 'Could not find that word online — you can type the meaning yourself.';
+    try {
+      const { phonetic, pos, definition, etymology } = await lookupWordInfo(word, { withEtymology: true });
+      if (phonetic) fields.phonetic.value = phonetic;
+      if (pos) fields.pos.value = pos;
+      if (definition) fields.definition.value = definition;
+      if (etymology) fields.etymology.value = etymology;
+
+      if (!definition) {
+        statusEl.textContent = 'Could not find that word online — you can type the meaning yourself.';
+      } else {
+        const missing = [];
+        if (!pos) missing.push('part of speech');
+        if (!phonetic) missing.push('pronunciation');
+        if (!etymology) missing.push('etymology');
+        statusEl.textContent = missing.length
+          ? `Definition found (no ${missing.join(' or ')} available online) — feel free to fill it in.`
+          : 'Definition found — feel free to edit it.';
+      }
+    } finally {
+      lookupBtn.disabled = false;
+    }
   });
 
   // ---------- Bulk add ----------
