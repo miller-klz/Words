@@ -22,7 +22,14 @@
   <main>
     <!-- TODAY -->
     <section id="view-today" class="view active">
-      <div id="today-content"></div>
+      <div class="day-nav">
+        <button type="button" id="day-prev-btn" class="day-nav-btn" aria-label="Previous day">‹</button>
+        <span id="day-nav-label" class="day-nav-label"></span>
+        <button type="button" id="day-next-btn" class="day-nav-btn" aria-label="Next day">›</button>
+      </div>
+      <div id="today-swipe-area">
+        <div id="today-content"></div>
+      </div>
     </section>
 
     <!-- LIST -->
@@ -70,6 +77,9 @@
         <label for="input-definition">Meaning</label>
         <textarea id="input-definition" placeholder="What does it mean?" required></textarea>
 
+        <label for="input-etymology">Etymology</label>
+        <textarea id="input-etymology" placeholder="Where the word comes from"></textarea>
+
         <label for="input-quote">Sentence or paragraph</label>
         <textarea id="input-quote" placeholder="A sentence using the word — ideally from a favorite author"></textarea>
 
@@ -95,10 +105,12 @@
         </div>
         <div class="row" style="margin-top:10px">
           <div>
-            <input type="text" id="new-author-input" placeholder="e.g. Toni Morrison" autocomplete="off" />
+            <input type="text" id="new-author-input" placeholder="e.g. Toni Morrison" list="new-author-datalist" autocomplete="off" />
+            <datalist id="new-author-datalist"></datalist>
           </div>
           <button type="button" id="add-author-btn" class="btn-secondary small-btn">Add</button>
         </div>
+        <p class="hint" style="margin-top:6px">Start typing to search real author names, or type your own.</p>
         <div id="author-chip-list" style="margin-top:12px"></div>
       </div>
 

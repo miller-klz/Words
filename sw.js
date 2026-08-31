@@ -1,4 +1,4 @@
-const CACHE_NAME = 'word-journal-v3';
+const CACHE_NAME = 'word-journal-v4';
 const APP_SHELL = [
   './',
   './index.html',
@@ -55,6 +55,10 @@ async function showWordOfDayNotification() {
   if (word.definition) bodyParts.push(word.definition);
   if (word.quote) {
     bodyParts.push(`"${word.quote}"${word.author ? ' — ' + word.author : ''}${word.book ? ` (${word.book})` : ''}`);
+  }
+  if (word.etymology) {
+    const trimmed = word.etymology.length > 140 ? word.etymology.slice(0, 137) + '…' : word.etymology;
+    bodyParts.push(`Etymology: ${trimmed}`);
   }
 
   await self.registration.showNotification(`Word of the day: ${word.word}`, {

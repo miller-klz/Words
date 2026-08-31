@@ -17,7 +17,7 @@
   function showView(name) {
     Object.keys(views).forEach((k) => views[k].classList.toggle('active', k === name));
     tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.view === name));
-    if (name === 'today') renderToday();
+    if (name === 'today') { dayOffset = 0; renderToday(); }
     if (name === 'list') { populateAuthorFilter().then(() => renderList()); }
     if (name === 'settings') renderSettings();
     if (name === 'add') {
@@ -47,11 +47,37 @@
 
   // ---------- Today ----------
 
+  let dayOffset = 0; // 0 = today, negative = that many recorded days back
+
+  function speak(text) {
+    if (!('speechSynthesis' in window)) { toast('Speech isn\'t supported on this device'); return; }
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'en-US';
+    window.speechSynthesis.speak(utter);
+  }
+
+  function formatHistoryDate(dateKey) {
+    const [y, m, d] = dateKey.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    const todayKey = wjTodayKey();
+    const yesterdayKey = wjTodayKey(new Date(Date.now() - 86400000));
+    if (dateKey === todayKey) return 'Today';
+    if (dateKey === yesterdayKey) return 'Yesterday';
+    return date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
   async function renderToday() {
     const container = document.getElementById('today-content');
-    const { word } = await wjPickWordOfDay();
+    const navLabel = document.getElementById('day-nav-label');
+    const prevBtn = document.getElementById('day-prev-btn');
+    const nextBtn = document.getElementById('day-next-btn');
+    const { word, entry, atOldest, atNewest } = await wjGetWordAtOffset(dayOffset);
 
-    if (!word) {
+    if (!entry) {
+      navLabel.textContent = '';
+      prevBtn.disabled = true;
+      nextBtn.disabled = true;
       container.innerHTML = `
         <div class="empty-state">
           <span class="big-emoji">📖</span>
@@ -62,11 +88,21 @@
       return;
     }
 
-    const dateStr = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    navLabel.textContent = formatHistoryDate(entry.date);
+    prevBtn.disabled = atOldest;
+    nextBtn.disabled = atNewest;
+
+    if (!word) {
+      container.innerHTML = `<div class="empty-state"><p>The word shown that day was later deleted.</p></div>`;
+      return;
+    }
+
     container.innerHTML = `
-      <p class="hint" style="margin-bottom:10px">${escapeHtml(dateStr)}</p>
       <div class="card">
-        <h2 class="today-word">${escapeHtml(word.word)}</h2>
+        <div class="today-word-row">
+          <h2 class="today-word">${escapeHtml(word.word)}</h2>
+          <button type="button" class="speak-btn" id="today-speak-btn" aria-label="Hear this word">🔊</button>
+        </div>
         <div class="today-meta">${escapeHtml(word.pos || '')}${word.phonetic ? ' · ' + escapeHtml(word.phonetic) : ''}</div>
         <p class="today-definition">${word.definition ? escapeHtml(word.definition) : '<em>No definition yet — go add one from My Words.</em>'}</p>
         ${word.quote ? `
@@ -74,9 +110,45 @@
             “${escapeHtml(word.quote)}”
             ${(word.author || word.book) ? `<cite>— ${escapeHtml(word.author || '')}${word.book ? ', ' + escapeHtml(word.book) : ''}</cite>` : ''}
           </blockquote>` : ''}
+        ${word.etymology ? `
+          <div class="etymology-block">
+            <span class="label">Etymology</span>
+            ${escapeHtml(word.etymology)}
+          </div>` : ''}
       </div>
     `;
+    document.getElementById('today-speak-btn').addEventListener('click', () => speak(word.word));
   }
+
+  document.getElementById('day-prev-btn').addEventListener('click', () => { dayOffset -= 1; renderToday(); });
+  document.getElementById('day-next-btn').addEventListener('click', () => { dayOffset = Math.min(0, dayOffset + 1); renderToday(); });
+
+  (function setupSwipe() {
+    const area = document.getElementById('today-swipe-area');
+    let startX = 0, startY = 0, tracking = false;
+
+    area.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      tracking = true;
+    }, { passive: true });
+
+    area.addEventListener('touchend', (e) => {
+      if (!tracking) return;
+      tracking = false;
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+      if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
+      if (dx < 0) {
+        dayOffset -= 1; // swipe left -> go back to an earlier day
+      } else {
+        dayOffset = Math.min(0, dayOffset + 1); // swipe right -> toward today
+      }
+      renderToday();
+    }, { passive: true });
+  })();
 
   // ---------- List ----------
 
@@ -112,9 +184,10 @@
 
     listEl.innerHTML = words.map((w) => `
       <div class="card word-card" data-id="${w.id}">
-        <h3>${escapeHtml(w.word)} <span class="pos">${escapeHtml(w.pos || '')}</span></h3>
+        <h3>${escapeHtml(w.word)} <span class="pos">${escapeHtml(w.pos || '')}</span> <button type="button" class="speak-btn" data-action="speak" data-word="${escapeHtml(w.word)}" aria-label="Hear this word">🔊</button></h3>
         <p class="def">${w.definition ? escapeHtml(w.definition) : '<em>No definition yet — tap Edit to add one.</em>'}</p>
         ${w.quote ? `<blockquote>“${escapeHtml(w.quote)}”${(w.author || w.book) ? ` — ${escapeHtml(w.author || '')}${w.book ? ', ' + escapeHtml(w.book) : ''}` : ''}</blockquote>` : ''}
+        ${w.etymology ? `<div class="etymology-block"><span class="label">Etymology</span>${escapeHtml(w.etymology)}</div>` : ''}
         <div class="actions">
           <button class="btn-secondary small-btn" data-action="edit" data-id="${w.id}">Edit</button>
           <button class="btn-danger small-btn" data-action="delete" data-id="${w.id}">Delete</button>
@@ -130,7 +203,9 @@
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
     const id = Number(btn.dataset.id);
-    if (btn.dataset.action === 'delete') {
+    if (btn.dataset.action === 'speak') {
+      speak(btn.dataset.word);
+    } else if (btn.dataset.action === 'delete') {
       if (confirm('Delete this word?')) {
         await wjDeleteWord(id);
         toast('Word deleted');
@@ -151,6 +226,7 @@
     pos: document.getElementById('input-pos'),
     phonetic: document.getElementById('input-phonetic'),
     definition: document.getElementById('input-definition'),
+    etymology: document.getElementById('input-etymology'),
     quote: document.getElementById('input-quote'),
     author: document.getElementById('input-author'),
     book: document.getElementById('input-book'),
@@ -171,6 +247,7 @@
     fields.pos.value = w.pos || '';
     fields.phonetic.value = w.phonetic || '';
     fields.definition.value = w.definition || '';
+    fields.etymology.value = w.etymology || '';
     fields.quote.value = w.quote || '';
     fields.author.value = w.author || '';
     fields.book.value = w.book || '';
@@ -179,11 +256,18 @@
     showView('add');
   }
 
-  async function lookupDefinition(word) {
+  function stripHtml(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return div.textContent.replace(/\s+/g, ' ').trim();
+  }
+
+  async function lookupFromDictionaryApi(word) {
     const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
-    if (!res.ok) throw new Error('not found');
+    if (!res.ok) return null;
     const data = await res.json();
     const entry = data[0];
+    if (!entry) return null;
     const phonetic = entry.phonetic || (entry.phonetics || []).map((p) => p.text).filter(Boolean)[0] || '';
     const meaning = (entry.meanings || [])[0];
     const definition = meaning && meaning.definitions && meaning.definitions[0] ? meaning.definitions[0].definition : '';
@@ -191,20 +275,66 @@
     return { phonetic, pos, definition };
   }
 
+  // Wiktionary has broader coverage than dictionaryapi.dev, especially for
+  // more literary/archaic words, so it's used as a fallback when the first
+  // source comes up empty.
+  async function lookupFromWiktionary(word) {
+    const res = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const entries = data.en || Object.values(data)[0] || [];
+    const first = entries[0];
+    if (!first) return null;
+    const def0 = (first.definitions || [])[0];
+    const definition = def0 && def0.definition ? stripHtml(def0.definition) : '';
+    return { phonetic: '', pos: first.partOfSpeech || '', definition };
+  }
+
+  async function lookupEtymology(word) {
+    try {
+      const secRes = await fetch(`https://en.wiktionary.org/w/api.php?action=parse&page=${encodeURIComponent(word)}&prop=sections&format=json&origin=*`);
+      if (!secRes.ok) return '';
+      const secData = await secRes.json();
+      const sections = (secData.parse && secData.parse.sections) || [];
+      const etySection = sections.find((s) => /^etymology/i.test(s.line));
+      if (!etySection) return '';
+      const textRes = await fetch(`https://en.wiktionary.org/w/api.php?action=parse&page=${encodeURIComponent(word)}&prop=text&section=${etySection.index}&format=json&origin=*`);
+      if (!textRes.ok) return '';
+      const textData = await textRes.json();
+      const html = textData.parse && textData.parse.text && textData.parse.text['*'];
+      if (!html) return '';
+      return stripHtml(html).replace(/\[\d+\]/g, '').trim();
+    } catch (err) {
+      return '';
+    }
+  }
+
+  async function lookupWordInfo(word, { withEtymology } = {}) {
+    let result = await lookupFromDictionaryApi(word).catch(() => null);
+    if (!result || !result.definition) {
+      const fallback = await lookupFromWiktionary(word).catch(() => null);
+      if (fallback && fallback.definition) {
+        result = { phonetic: result ? result.phonetic : '', pos: result && result.pos ? result.pos : fallback.pos, definition: fallback.definition };
+      }
+    }
+    result = result || { phonetic: '', pos: '', definition: '' };
+    result.etymology = withEtymology ? await lookupEtymology(word) : '';
+    return result;
+  }
+
   document.getElementById('lookup-btn').addEventListener('click', async () => {
     const word = fields.word.value.trim();
     if (!word) { toast('Type a word first'); return; }
     const statusEl = document.getElementById('lookup-status');
     statusEl.textContent = 'Looking up…';
-    try {
-      const { phonetic, pos, definition } = await lookupDefinition(word);
-      if (phonetic) fields.phonetic.value = phonetic;
-      if (pos) fields.pos.value = pos;
-      if (definition) fields.definition.value = definition;
-      statusEl.textContent = definition ? 'Definition found — feel free to edit it.' : 'Found the word, but no definition text. Add your own.';
-    } catch (err) {
-      statusEl.textContent = 'Could not find that word online — you can type the meaning yourself.';
-    }
+    const { phonetic, pos, definition, etymology } = await lookupWordInfo(word, { withEtymology: true });
+    if (phonetic) fields.phonetic.value = phonetic;
+    if (pos) fields.pos.value = pos;
+    if (definition) fields.definition.value = definition;
+    if (etymology) fields.etymology.value = etymology;
+    statusEl.textContent = definition
+      ? 'Definition found — feel free to edit it.'
+      : 'Could not find that word online — you can type the meaning yourself.';
   });
 
   // ---------- Bulk add ----------
@@ -245,17 +375,15 @@
 
     for (let i = 0; i < wordsToAdd.length; i++) {
       const word = wordsToAdd[i];
-      statusEl.textContent = `Adding ${i + 1} of ${wordsToAdd.length}: ${word}…`;
-      let looked = { phonetic: '', pos: '', definition: '' };
-      try {
-        looked = await lookupDefinition(word);
-      } catch (err) { /* no definition found online; save anyway for later editing */ }
+      statusEl.textContent = `Looking up ${i + 1} of ${wordsToAdd.length}: ${word}…`;
+      const looked = await lookupWordInfo(word, { withEtymology: true });
       if (!looked.definition) missingDefinition++;
       await wjAddWord({
         word,
         pos: looked.pos || '',
         phonetic: looked.phonetic || '',
         definition: looked.definition || '',
+        etymology: looked.etymology || '',
         quote: '',
         author: '',
         book: '',
@@ -278,6 +406,7 @@
       pos: fields.pos.value.trim(),
       phonetic: fields.phonetic.value.trim(),
       definition: fields.definition.value.trim(),
+      etymology: fields.etymology.value.trim(),
       quote: fields.quote.value.trim(),
       author: fields.author.value.trim(),
       book: fields.book.value.trim(),
@@ -332,6 +461,51 @@
     if (!btn) return;
     await wjDeleteAuthor(Number(btn.dataset.id));
     renderAuthorChips();
+  });
+
+  function debounce(fn, ms) {
+    let t;
+    return (...args) => {
+      clearTimeout(t);
+      t = setTimeout(() => fn(...args), ms);
+    };
+  }
+
+  // Wikidata's search covers a huge range of real people; filtering to
+  // descriptions that sound like writers keeps the suggestion list relevant.
+  async function searchAuthorsOnline(query) {
+    if (!query || query.length < 2) return [];
+    try {
+      const res = await fetch(`https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(query)}&language=en&type=item&limit=15&format=json&origin=*`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      const items = data.search || [];
+      const authorKeywords = /writer|author|novelist|poet|playwright|essayist|screenwriter|journalist/i;
+      const filtered = items.filter((i) => i.description && authorKeywords.test(i.description));
+      const names = (filtered.length ? filtered : items).map((i) => i.label).filter(Boolean);
+      return Array.from(new Set(names));
+    } catch (err) {
+      return [];
+    }
+  }
+
+  async function updateAuthorSuggestions(query, datalistEl) {
+    const favorites = await wjGetAllAuthors();
+    const q = query.toLowerCase();
+    const favNames = favorites.map((a) => a.name).filter((n) => !q || n.toLowerCase().includes(q));
+    const online = await searchAuthorsOnline(query);
+    const merged = Array.from(new Set([...favNames, ...online]));
+    datalistEl.innerHTML = merged.map((n) => `<option value="${escapeHtml(n)}"></option>`).join('');
+  }
+
+  const debouncedAuthorSearch = debounce(updateAuthorSuggestions, 300);
+
+  fields.author.addEventListener('input', () => {
+    debouncedAuthorSearch(fields.author.value.trim(), document.getElementById('authors-datalist'));
+  });
+
+  document.getElementById('new-author-input').addEventListener('input', () => {
+    debouncedAuthorSearch(document.getElementById('new-author-input').value.trim(), document.getElementById('new-author-datalist'));
   });
 
   // ---------- Settings ----------

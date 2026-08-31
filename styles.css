@@ -91,6 +91,81 @@ main {
 .empty-state .big-emoji { font-size: 2.4rem; display: block; margin-bottom: 8px; }
 
 /* Today view */
+
+.day-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.day-nav-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--brand);
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0;
+}
+.day-nav-btn:disabled { opacity: 0.3; }
+
+.day-nav-label {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  min-width: 160px;
+  text-align: center;
+}
+
+#today-swipe-area {
+  touch-action: pan-y;
+}
+
+.today-word-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.speak-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  width: 34px;
+  height: 34px;
+  font-size: 1rem;
+  padding: 0;
+  color: var(--brand);
+  flex-shrink: 0;
+}
+
+.word-card h3 .speak-btn {
+  width: 26px;
+  height: 26px;
+  font-size: 0.8rem;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.etymology-block {
+  margin-top: 14px;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.etymology-block .label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 4px;
+}
+
 .today-word {
   font-family: Georgia, "Times New Roman", serif;
   font-size: 2rem;

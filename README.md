@@ -4,13 +4,20 @@ A small home-screen app for collecting your favorite words from books,
 with a daily notification showing one saved word, its meaning, and a
 sentence/quote you attach (ideally from the author you found it in).
 
-- **Add a word** — type it, tap "Look up" to auto-fill the definition
-  (via the free [dictionaryapi.dev](https://dictionaryapi.dev/) API), then
-  add your own sentence/paragraph, author, and book.
+- **Add a word** — type it, tap "Look up" to auto-fill the definition and
+  etymology ([dictionaryapi.dev](https://dictionaryapi.dev/) with a
+  Wiktionary fallback for broader coverage), then add your own
+  sentence/paragraph, author, and book. Or switch to **Quick add list** to
+  paste several words at once — each gets looked up automatically.
 - **Today** — shows one word a day, picked automatically so you cycle
-  through your whole collection before repeating.
-- **My Words** — browse, search, edit, and delete everything you've saved.
-- **Settings** — turn on daily notifications, and export/import a backup.
+  through your whole collection before repeating. Swipe left/right (or use
+  the ‹ › buttons) to revisit previous days, and tap 🔊 to hear the word
+  spoken aloud.
+- **My Words** — browse, search, filter by author, edit, and delete
+  everything you've saved.
+- **Settings** — manage a list of favorite authors (search real author
+  names or type your own), turn on daily notifications, and export/import
+  a backup.
 
 All your words are stored **only on your phone** (in the browser's local
 IndexedDB) — nothing is sent to a server. That keeps things simple and

@@ -155,7 +155,9 @@ function wjShuffle(arr) {
 
 /* Deterministic-per-day word picker: cycles through all saved words in a
    shuffled order without repeats, reshuffling once a full cycle completes.
-   Once a word is picked for "today" it stays the same for the rest of the day. */
+   Once a word is picked for "today" it stays the same for the rest of the day.
+   Every day picked is appended to meta.history (date -> wordId) so past
+   days can be revisited later. */
 function wjPickWordOfDay() {
   var todayKey = wjTodayKey();
   return wjGetAllWords().then(function (words) {
@@ -164,7 +166,8 @@ function wjPickWordOfDay() {
     words.forEach(function (w) { idSet[w.id] = true; });
 
     return wjGetMeta().then(function (meta) {
-      meta = meta || { lastDate: null, order: [], cursor: 0, currentWordId: null };
+      meta = meta || { lastDate: null, order: [], cursor: 0, currentWordId: null, history: [] };
+      var history = meta.history || [];
 
       if (meta.lastDate === todayKey && idSet[meta.currentWordId]) {
         var existing = words.filter(function (w) { return w.id === meta.currentWordId; })[0];
@@ -186,14 +189,51 @@ function wjPickWordOfDay() {
       var currentWordId = order[cursor];
       cursor += 1;
 
+      if (!history.length || history[history.length - 1].date !== todayKey) {
+        history = history.concat([{ date: todayKey, wordId: currentWordId }]);
+        if (history.length > 365) history = history.slice(history.length - 365);
+      }
+
       return wjSetMeta({
         lastDate: todayKey,
         order: order,
         cursor: cursor,
         currentWordId: currentWordId,
+        history: history,
       }).then(function () {
         var picked = words.filter(function (w) { return w.id === currentWordId; })[0];
         return { word: picked, words: words };
+      });
+    });
+  });
+}
+
+/* Returns the chronological (oldest-first) list of {date, wordId} entries
+   recorded by wjPickWordOfDay. */
+function wjGetHistory() {
+  return wjGetMeta().then(function (meta) {
+    return (meta && meta.history) || [];
+  });
+}
+
+/* offset 0 = today (computing/persisting today's pick if not already done),
+   negative = that many days back in the recorded history.
+   Resolves to { entry: {date, wordId} | null, word: word|null, atOldest, atNewest }. */
+function wjGetWordAtOffset(offset) {
+  return wjPickWordOfDay().then(function () {
+    return wjGetHistory().then(function (history) {
+      if (!history.length) return { entry: null, word: null, atOldest: true, atNewest: true };
+      var index = history.length - 1 + offset;
+      var clamped = Math.max(0, Math.min(history.length - 1, index));
+      var entry = history[clamped];
+      return wjGetAllWords().then(function (words) {
+        var word = words.filter(function (w) { return w.id === entry.wordId; })[0] || null;
+        return {
+          entry: entry,
+          word: word,
+          atOldest: clamped === 0,
+          atNewest: clamped === history.length - 1,
+        };
       });
     });
   });
