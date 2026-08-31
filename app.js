@@ -657,10 +657,11 @@
         if (!item.word || !item.definition) continue;
         const entry = {
           word: item.word, pos: item.pos || '', phonetic: item.phonetic || '',
-          definition: item.definition, quote: item.quote || '', author: item.author || '',
-          book: item.book || '', dateAdded: item.dateAdded || Date.now(),
+          definition: item.definition, etymology: item.etymology || '', quote: item.quote || '',
+          author: item.author || '', book: item.book || '', dateAdded: item.dateAdded || Date.now(),
         };
         await wjAddWord(entry);
+        if (entry.author) await wjEnsureAuthor(entry.author);
         count++;
       }
       toast(`Imported ${count} word${count === 1 ? '' : 's'}`);
